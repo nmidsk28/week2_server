@@ -43,11 +43,11 @@ app.get('/', function(req, res, next) {
 const server = app.listen(port, () => console.log(`Server listening on port ${port}`));
 var io = socketio.listen(server);
 var roomName;
-var whoIsOn = [];
 
+var whoIsOn = [];
 io.sockets.on('connection', function (socket){
     // console.log('Socket ID : ' + socket.id + ', Connect');
-
+    
     //메세지 보내기
     socket.on('clientMessage', function(data){ 
         console.log('Client Message : ' + data);
@@ -65,16 +65,68 @@ io.sockets.on('connection', function (socket){
         console.log(data); //들어간 방, username
         socket.join(data.roomName);
         roomName = data.roomName;
-        // username = data.username;
-        // whoIsOn.push(username);
+        username = data.username;
+        if(!whoIsOn.includes(username)) {
+            whoIsOn.push(username);
+        }
+        console.log(roomName);
+        console.log(username);
+        console.log(whoIsOn);
 
         // var whoIsOnJson = `${whoIsOn}`;
         // console.log(whoIsOnJson);
-        // io.emit('newUser', whoIsOnJson); //server에서 client로 이벤ㅌ 보내기
+        io.sockets.in(roomName).emit('newUser', {username : username, roomName : roomName}); //server에서 client로 이벤ㅌ 보내기
     });
 
     socket.on('reqMsg', function(data) {
         console.log(data);
-        io.sockets.in(roomName).emit('reqMsg', { {comment: instanceId + " : " + data.comment+'\n'})
+        roomName = data.roomName;
+        console.log(typeof(roomName));
+        // io.sockets.emit('recMsg', {answer: data.userName + " : " + data.answer+'\n'})
+        io.to(roomName).emit('recMsg', {answer: data.userName + " : " + data.answer+'\n'});
+    })
+
+    socket.on('draw', function(data) {
+        console.log(data);
+        roomName = data.roomName;
+        socket.broadcast.to(roomName).emit('paint',{x : data.x, y : data.y, check : data.check, color : data.color});
+    })
+
+    socket.on('reset', function(data) {
+        console.log(data);
+        roomName = data.roomName;
+        
+        // io.sockets.emit('resetPaint', {resetMsg : data.userName});
+        io.to(roomName).emit('resetPaint', {resetMsg : data.userName});
+    })
+
+    socket.on('countUsers', function(data) {
+        console.log(whoIsOn);
+        console.log(whoIsOn.length);
+        io.sockets.emit('countUserNum', {userNum : whoIsOn.length, users : whoIsOn});
+    })
+
+    socket.on('leave', function(data) {
+        console.log('leave socket');
+        roomName = data.roomName;
+        userName = data.userName;
+
+        socket.leave(roomName);
+        var i;
+        for(i=0;i<whoIsOn.length;i++) {
+            if(whoIsOn[i] == userName) {
+                whoIsOn.splice(i, 1);
+            }
+        }
+        console.log(whoIsOn);
+        io.to(roomName).emit('leaveMsg', {userName : data.userName, roomName : roomName});
+
+    })
+
+    socket.on('problem', function(data) {
+        answer = data.problem;
+        roomName = data.roomName;
+        console.log(answer);
+        socket.broadcast.to(roomName).emit('receiveProblem', {answer: answer});
     })
 });
